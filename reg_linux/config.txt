@@ -1,0 +1,11 @@
+# 注册机配置文件 - 按需修改
+FRONT_IP=8.138.198.37
+API_TOKEN=twitch-cdk-api-token-2024
+MAIL_API_URL=https://mailapi.izlvxhe.cn
+MAIL_ADMIN_AUTH=Aalcsttkx1!
+MAIL_DOMAINS=htazmbb.shop
+REGISTER_COUNT=10
+PREFIX=blue_ctf
+PASSWORD=BlueCtf2026!Secure
+DEBUG=true
+REG_THREADS=1

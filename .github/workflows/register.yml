@@ -1,0 +1,15 @@
+﻿name: Twitch Auto Register
+
+on:
+  workflow_dispatch:
+
+jobs:
+  register:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Registration
+        run: bash reg_linux/run.sh
