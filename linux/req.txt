@@ -1,0 +1,6 @@
+cloakbrowser>=0.3.0
+playwright>=1.50.0
+requests>=2.28.0
+python-dotenv>=1.0.0
+loguru>=0.7.0
+urllib3
