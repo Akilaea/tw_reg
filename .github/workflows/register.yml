@@ -1,166 +1,120 @@
-name: Auto Registration Runner
+# public.yml - 公开仓库模板 workflow
+#
+# 用法（详见代码仓库 README）:
+#   1. 复制本文件全部内容到公开仓库的 .github/workflows/a.yml
+#   2. Settings → Secrets and variables → Actions 配置 PRIVATE_REPO_ACCESS_KEY
+#   3. Run workflow，填写服务器 IP 和 Job 数量（推荐 256）
+#
+# 流程: 拉取代码仓库最新代码 → 每个 job 独立环境执行注册任务
+#       每 job 默认 30 个账号（3 线程 × 10），自动容错
+
+name: Twitch Register
 
 on:
   workflow_dispatch:
     inputs:
-      front_ip:
-        description: 'Front server IP (FRONT_IP)'
-        required: true
-        type: string
-        default: '198.44.182.21'
+      server_ip:
+        description: "上传账户的服务器 IP"
+        required: false
+        default: "198.44.182.98"
       job_count:
-        description: 'Concurrent job count (REG_THREADS)'
-        required: true
-        type: string
-        default: '256'
-      register_count:
-        description: 'Accounts per job (REGISTER_COUNT)'
-        required: true
-        type: string
-        default: '20'
-      failure_threshold:
-        description: 'Cancel remaining tasks when failures reach this (FAILURE_THRESHOLD)'
+        description: "Job 数量 (推荐 256)"
         required: false
-        type: string
-        default: '2'
-      mail_domains:
-        description: 'Temp email domain for registration (MAIL_DOMAINS)'
+        default: "256"
+      log_level:
+        description: "日志级别 (DEBUG/INFO/WARNING)"
         required: false
-        type: string
-        default: 'olsbvgq.shop'
+        default: "INFO"
+      headless_ratio:
+        description: "无头比例 0.0-1.0 (0=全有头, 1=全无头, 0.5=随机各半)"
+        required: false
+        default: "0.5"
+
+env:
+  SERVER_IP: ${{ inputs.server_ip }}
+  WORKER_COUNT: "3"
+  ACCOUNTS_PER_WORKER: "10"
+  # 每次启动浏览器按此概率随机选无头；想固定模式就设 NO_HEADLESS=true(有头)/false(无头)
+  HEADLESS_RATIO: ${{ inputs.headless_ratio }}
+  PYTHONIOENCODING: utf-8
+  LOGURU_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+  # --- 下面这些按需覆盖即可，默认值见 config_helpers.py ---
+  # 5025/2014 递进恢复：连续 5 次 → 重置 WARP 换出口 IP（1 次）→ 再不行切本机直连 → 仍不行放弃
+  WARP_RESET_ENABLED: "true"
+  WARP_RESET_THRESHOLD: "5"
+  WARP_RESET_MAX: "1"
+  WARP_DIRECT_FALLBACK: "true"
+  # 时区/语言跟随出口 IP（矛盾指纹是反爬最常见的交叉校验点）；想固定英语+系统时区就设 false
+  GEO_MATCH: "true"
+  # 注册成功后关注频道（新号大概率被手机验证关卡挡住，成功率看 job 结束的汇总行）
+  FOLLOW_ENABLED: "true"
 
 jobs:
+  # 根据 job_count 生成 matrix（限制 1-256）
   prepare:
     runs-on: ubuntu-latest
     outputs:
-      front-ip: ${{ steps.config.outputs.front-ip }}
-      job-count: ${{ steps.config.outputs.job-count }}
-      register-count: ${{ steps.config.outputs.register-count }}
-      mail-domains: ${{ steps.config.outputs.mail-domains }}
-      job-indices: ${{ steps.config.outputs.job-indices }}
+      matrix: ${{ steps.gen.outputs.matrix }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Read parameters and parse job matrix
-        id: config
+      - name: Generate job matrix
+        id: gen
         run: |
-          FRONT_IP_VAL="${{ github.event.inputs.front_ip }}"
-          JOB_COUNT="${{ github.event.inputs.job_count }}"
-          REG_COUNT="${{ github.event.inputs.register_count }}"
-          
-          if [ -z "$FRONT_IP_VAL" ]; then
-            echo "Error: FRONT_IP is required"
-            exit 1
-          fi
-          if ! [[ "$JOB_COUNT" =~ ^[0-9]+$ ]] || [ "$JOB_COUNT" -lt 1 ]; then
-            echo "Error: Invalid JOB_COUNT ($JOB_COUNT)"
-            exit 1
-          fi
-          if ! [[ "$REG_COUNT" =~ ^[0-9]+$ ]] || [ "$REG_COUNT" -lt 1 ]; then
-            echo "Error: Invalid REGISTER_COUNT ($REG_COUNT)"
-            exit 1
-          fi
-          
-          echo "front-ip=${FRONT_IP_VAL}" >> $GITHUB_OUTPUT
-          echo "job-count=${JOB_COUNT}" >> $GITHUB_OUTPUT
-          echo "register-count=${REG_COUNT}" >> $GITHUB_OUTPUT
-          echo "mail-domains=${{ github.event.inputs.mail_domains || 'htazmbb.shop' }}" >> $GITHUB_OUTPUT
-          
-          INDICES=$(python3 -c "import json; print(json.dumps(list(range(int('$JOB_COUNT')))))")
-          echo "job-indices=${INDICES}" >> $GITHUB_OUTPUT
+          n=${{ github.event.inputs.job_count }}
+          if [ "$n" -gt 256 ]; then n=256; fi
+          if [ "$n" -lt 1 ]; then n=1; fi
+          python3 -c "import json; print('matrix=' + json.dumps(list(range($n))))" >> "$GITHUB_OUTPUT"
+          echo "将启动 $n 个并行 job"
 
   register:
     needs: prepare
-    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        job-index: ${{ fromJson(needs.prepare.outputs.job-indices) }}
       fail-fast: false
-      max-parallel: 10
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      matrix:
+        index: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: windows-latest
+    timeout-minutes: 360
 
-      - name: Set up Python
+    steps:
+      # 拉取代码仓库的最新代码
+      - name: Fetch source code
+        uses: actions/checkout@v4
+        with:
+          repository: xbox-cn/twitch-reg-test
+          token: ${{ secrets.PRIVATE_REPO_ACCESS_KEY }}
+          path: code
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: linux/req.txt
+          python-version: "3.12"
+          cache: pip
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
-            libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 \
-            libgbm1 libpango-1.0-0 libcairo2 libnspr4 libnss3 \
-            libasound2t64 libxshmfence1 libx11-xcb1 libxcb-dri3-0 \
-            libxfixes3 libxext6 libxinerama1 \
-            fonts-noto-color-emoji fonts-freefont-ttf fonts-unifont \
-            fonts-ipafont-gothic fonts-wqy-zenhei fonts-tlwg-loma-otf \
-            xvfb
+      - name: Install dependencies
+        run: pip install -r code/requirements.txt
 
-      - name: Install Python dependencies
+      # 环境准备 + 注册合并同一步骤
+      - name: Run registration
+        shell: pwsh
         run: |
-          cd linux
-          pip install --upgrade pip
-          pip install -r req.txt
+          cd code
+          # 1) 准备独立运行环境（每 job 独立配置，同时拉起 WARP 并设置系统代理）
+          python tools/runner/manager.py --data-dir "env-data-${{ matrix.index }}"
+          if ($LASTEXITCODE -ne 0) { throw "环境准备失败" }
+          # run.py 靠这个标记做 5025 后的 WARP 重置；缺失则只能退回熔断终止
+          if (-not (Test-Path "tools/runner/.warp_datadir")) {
+            Write-Host "警告: manager.py 未写入 .warp_datadir，5025 时无法重置 WARP"
+          }
 
-      - name: Run registration (Job ${{ matrix.job-index }})
-        run: |
-          export WORKER_ID="wrk_job_${{ matrix.job-index }}_${{ github.run_id }}"
-          export LOGURU_LEVEL=INFO
-          python3 -m linux
-        env:
-          TWITCH_CTF: "1"
-          FRONT_IP: ${{ needs.prepare.outputs.front-ip }}
-          REGISTER_COUNT: ${{ needs.prepare.outputs.register-count }}
-          FAILURE_THRESHOLD: ${{ github.event.inputs.failure_threshold }}
-          MAIL_DOMAINS: ${{ needs.prepare.outputs.mail-domains }}
+          # 2) 执行注册任务（每 job 30 个账号 = 3 线程 × 10）
+          python run.py
+          if ($LASTEXITCODE -ne 0) { throw "注册失败(退出码 $LASTEXITCODE)" }
 
       - name: Upload logs
         if: always()
-        run: |
-          set -e
-          ART_DIR="artifacts/job-${{ matrix.job-index }}"
-          mkdir -p "$ART_DIR"
-          cp linux/reg_linux_*.log "$ART_DIR/" 2>/dev/null || true
-          if [ -d "linux/profiles" ]; then
-            cp -r linux/profiles "$ART_DIR/" || true
-          fi
-          if [ -d "profiles" ]; then
-            cp -r profiles "$ART_DIR/" || true
-          fi
-          cp -r linux/*.log "$ART_DIR/" 2>/dev/null || true
-          TAR_PATH="artifacts/job-${{ matrix.job-index }}.tar.gz"
-          tar -czf "$TAR_PATH" -C artifacts "job-${{ matrix.job-index }}"
-
-      - name: Upload artifacts
-        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: job-${{ matrix.job-index }}-artifacts
-          path: artifacts/job-${{ matrix.job-index }}.tar.gz
-          retention-days: 7
+          name: logs-${{ matrix.index }}-${{ github.run_id }}
+          path: |
+            code/logs/
+            code/tools/runner/run.log
           if-no-files-found: ignore
-
-  summary:
-    needs: [prepare, register]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Download all logs
-        uses: actions/download-artifact@v4
-        with:
-          path: logs
-
-      - name: Show summary
-        run: |
-          echo "Completed."
-          echo "Front: ${{ needs.prepare.outputs.front-ip }}"
-          echo "Job count: ${{ needs.prepare.outputs.job-count }}"
-          echo "Register count: ${{ needs.prepare.outputs.register-count }}"
-          echo "Mail domains: ${{ needs.prepare.outputs.mail-domains }}"
