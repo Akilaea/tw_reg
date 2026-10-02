@@ -44,6 +44,8 @@ env:
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
   VPNGATE_FAIL_THRESHOLD: "3"
+  # openvpn 绝对路径：choco 安装不会影响后续步骤的 PATH，所以显式指定
+  VPNGATE_OPENVPN: 'C:\Program Files\OpenVPN\bin\openvpn.exe'
   WARP_RESET_ENABLED: "true"
   WARP_RESET_THRESHOLD: "5"
   WARP_RESET_MAX: "1"
@@ -100,15 +102,11 @@ jobs:
       - name: Install OpenVPN (VPNGate 出口需要)
         shell: pwsh
         run: |
-          if (Get-Command openvpn -ErrorAction SilentlyContinue) { Write-Host "openvpn 已存在"; exit 0 }
+          $exe = 'C:\Program Files\OpenVPN\bin\openvpn.exe'
+          if (Test-Path $exe) { Write-Host "openvpn 已存在: $exe"; exit 0 }
           choco install openvpn --no-progress -y
-          $machinePath = [System.Environment]::GetEnvironmentVariable("Path","Machine")
-          $env:Path = "$machinePath;$env:Path"
-          if (Get-Command openvpn -ErrorAction SilentlyContinue) {
-            Write-Host "openvpn 安装成功: $((Get-Command openvpn).Source)"
-          } else {
-            Write-Warning "openvpn 未安装成功；run.py 会自动跳过 VPNGate 级，直接走 WARP"
-          }
+          if (Test-Path $exe) { Write-Host "openvpn 安装成功: $exe" }
+          else { Write-Warning "未找到 $exe；run.py 会自动跳过 VPNGate 级，直接走 WARP" }
 
       - name: Run registration
         shell: pwsh
