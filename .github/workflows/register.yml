@@ -132,4 +132,5 @@ jobs:
           path: |
             code/logs/
             code/tools/runner/run.log
+            code/vpngate-data/
           if-no-files-found: ignore
