@@ -25,6 +25,10 @@ on:
         description: "日志级别 (DEBUG/INFO/WARNING)"
         required: false
         default: "INFO"
+      check_only:
+        description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
+        required: false
+        default: "false"
       headless_ratio:
         description: "无头比例 0.0-1.0 (0=全有头, 1=全无头, 0.5=随机各半)"
         required: false
@@ -36,6 +40,7 @@ env:
   ACCOUNTS_PER_WORKER: "10"
   # 每次启动浏览器按此概率随机选无头；想固定模式就设 NO_HEADLESS=true(有头)/false(无头)
   HEADLESS_RATIO: ${{ inputs.headless_ratio }}
+  CHECK_ONLY: ${{ inputs.check_only }}
   PYTHONIOENCODING: utf-8
   LOGURU_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
   # --- 下面这些按需覆盖即可，默认值见 config_helpers.py ---
