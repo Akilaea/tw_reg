@@ -40,6 +40,10 @@ env:
   LOGURU_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
   # --- 下面这些按需覆盖即可，默认值见 config_helpers.py ---
   # 5025/2014 递进恢复：连续 5 次 → 重置 WARP 换出口 IP（1 次）→ 再不行切本机直连 → 仍不行放弃
+  # 出口恢复链：VPNGate 节点轮换 → WARP 重置 → 本机直连 → 终止
+  VPNGATE_ENABLED: "true"
+  VPNGATE_NODES: "100"
+  VPNGATE_FAIL_THRESHOLD: "3"
   WARP_RESET_ENABLED: "true"
   WARP_RESET_THRESHOLD: "5"
   WARP_RESET_MAX: "1"
@@ -93,6 +97,19 @@ jobs:
         run: pip install -r code/requirements.txt
 
       # 环境准备 + 注册合并同一步骤
+      - name: Install OpenVPN (VPNGate 出口需要)
+        shell: pwsh
+        run: |
+          if (Get-Command openvpn -ErrorAction SilentlyContinue) { Write-Host "openvpn 已存在"; exit 0 }
+          choco install openvpn --no-progress -y
+          $machinePath = [System.Environment]::GetEnvironmentVariable("Path","Machine")
+          $env:Path = "$machinePath;$env:Path"
+          if (Get-Command openvpn -ErrorAction SilentlyContinue) {
+            Write-Host "openvpn 安装成功: $((Get-Command openvpn).Source)"
+          } else {
+            Write-Warning "openvpn 未安装成功；run.py 会自动跳过 VPNGate 级，直接走 WARP"
+          }
+
       - name: Run registration
         shell: pwsh
         run: |
