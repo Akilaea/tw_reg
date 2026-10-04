@@ -25,6 +25,10 @@ on:
         description: "日志级别 (DEBUG/INFO/WARNING)"
         required: false
         default: "INFO"
+      clash_sub_url:
+        description: 'Clash 订阅地址（留空则用仓库 secret CLASH_SUB_URL）；设了就以订阅节点为第一级出口'
+        required: false
+        default: ''
       check_only:
         description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
         required: false
@@ -45,7 +49,11 @@ env:
   LOGURU_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
   # --- 下面这些按需覆盖即可，默认值见 config_helpers.py ---
   # 5025/2014 递进恢复：连续 5 次 → 重置 WARP 换出口 IP（1 次）→ 再不行切本机直连 → 仍不行放弃
-  # 出口恢复链：VPNGate 节点轮换 → WARP 重置 → 本机直连 → 终止
+  # 出口恢复链（从第一级逐级降级）：Clash 订阅节点 → VPNGate 节点轮换 → WARP 重置 → 本机直连 → 终止
+  # Clash 订阅地址放 secret（公开仓库不明文出现）；设了就以订阅节点为第一级出口
+  CLASH_SUB_URL: ${{ inputs.clash_sub_url != '' && inputs.clash_sub_url || secrets.CLASH_SUB_URL }}
+  CLASH_FAIL_THRESHOLD: "3"
+  CLASH_ROUNDS: "2"
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
   VPNGATE_FAIL_THRESHOLD: "3"
