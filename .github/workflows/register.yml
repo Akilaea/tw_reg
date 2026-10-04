@@ -37,6 +37,10 @@ on:
         description: '外部代理出口(如 http://1.2.3.4:7897，无认证)。设了 GA 优先用它——可把本机 Clash 经隧道暴露给 GA 用'
         required: false
         default: ''
+      clash_pin_node:
+        description: '指定优先使用的 Clash 节点名（本机/GA 同 IP 对照实验用；留空=随机）'
+        required: false
+        default: ''
       check_only:
         description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
         required: false
@@ -64,6 +68,7 @@ env:
   CLASH_ROUNDS: "2"
   CLASH_DIAG_LIMIT: ${{ inputs.clash_diag_limit }}
   UPSTREAM_PROXY: ${{ inputs.upstream_proxy }}
+  CLASH_PIN_NODE: ${{ inputs.clash_pin_node }}
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
   VPNGATE_FAIL_THRESHOLD: "3"
