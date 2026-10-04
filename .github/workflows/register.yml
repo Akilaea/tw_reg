@@ -29,6 +29,10 @@ on:
         description: 'Clash 订阅地址（留空则用仓库 secret CLASH_SUB_URL）；设了就以订阅节点为第一级出口'
         required: false
         default: ''
+      clash_diag_limit:
+        description: '诊断用：Clash 最多试几个节点就结束（0=不限）'
+        required: false
+        default: '0'
       check_only:
         description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
         required: false
@@ -54,6 +58,7 @@ env:
   CLASH_SUB_URL: ${{ inputs.clash_sub_url != '' && inputs.clash_sub_url || secrets.CLASH_SUB_URL }}
   CLASH_FAIL_THRESHOLD: "3"
   CLASH_ROUNDS: "2"
+  CLASH_DIAG_LIMIT: ${{ inputs.clash_diag_limit }}
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
   VPNGATE_FAIL_THRESHOLD: "3"
