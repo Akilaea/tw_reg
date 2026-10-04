@@ -136,6 +136,14 @@ jobs:
           if (Test-Path $exe) { Write-Host "openvpn 安装成功: $exe" }
           else { Write-Warning "未找到 $exe；run.py 会自动跳过 VPNGate 级，直接走 WARP" }
 
+      # 预热 Clash 内核：提前下载 mihomo 并执行一次（触发杀软扫描/页缓存），
+      # 避免 run.py 首次启动 58MB 新 exe 时卡在初始化（实测偶发 60s 不就绪）
+      - name: Warm up Clash core
+        if: ${{ env.CLASH_SUB_URL != '' }}
+        continue-on-error: true
+        run: python clash_proxy.py --warmup
+        working-directory: code
+
       - name: Run registration
         shell: pwsh
         run: |
