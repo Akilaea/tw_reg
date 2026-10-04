@@ -45,6 +45,10 @@ on:
         description: '快速验证：1 线程 × 1 账号，跑完即结束（留空=默认 3×10）'
         required: false
         default: 'false'
+      fp_dump:
+        description: '指纹差分采集(JSON 一条日志)：true/false'
+        required: false
+        default: 'false'
       check_only:
         description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
         required: false
@@ -76,6 +80,7 @@ env:
   # 全流程只走 IPv4：整机禁用 IPv6 + 关 QUIC(HTTP/3 走 UDP 会绕过 HTTP 代理，从 WARP/本机 IPv6 出去)
   FORCE_IPV4: "true"
   DISABLE_QUIC: "true"
+  FP_DUMP: ${{ inputs.fp_dump }}
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
   VPNGATE_FAIL_THRESHOLD: "3"
