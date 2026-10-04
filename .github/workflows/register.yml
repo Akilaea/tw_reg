@@ -73,6 +73,9 @@ env:
   CLASH_DIAG_LIMIT: ${{ inputs.clash_diag_limit }}
   UPSTREAM_PROXY: ${{ inputs.upstream_proxy }}
   CLASH_PIN_NODE: ${{ inputs.clash_pin_node }}
+  # 全流程只走 IPv4：整机禁用 IPv6 + 关 QUIC(HTTP/3 走 UDP 会绕过 HTTP 代理，从 WARP/本机 IPv6 出去)
+  FORCE_IPV4: "true"
+  DISABLE_QUIC: "true"
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
   VPNGATE_FAIL_THRESHOLD: "3"
