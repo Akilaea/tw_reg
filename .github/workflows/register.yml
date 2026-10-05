@@ -49,6 +49,10 @@ on:
         description: '指纹差分采集(JSON 一条日志)：true/false'
         required: false
         default: 'false'
+      browser_engine:
+        description: '浏览器内核：chromium(默认, CloakBrowser) / camoufox(Firefox 反检测)'
+        required: false
+        default: 'chromium'
       check_only:
         description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
         required: false
@@ -81,6 +85,7 @@ env:
   FORCE_IPV4: "true"
   DISABLE_QUIC: "true"
   FP_DUMP: ${{ inputs.fp_dump }}
+  BROWSER_ENGINE: ${{ inputs.browser_engine }}
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
   VPNGATE_FAIL_THRESHOLD: "3"
@@ -155,6 +160,12 @@ jobs:
         continue-on-error: true
         run: python clash_proxy.py --warmup
         working-directory: code
+
+      # Camoufox(Firefox)：下载反检测内核（仅在选用 camoufox 时执行）
+      - name: Fetch Camoufox browser
+        if: ${{ inputs.browser_engine == 'camoufox' }}
+        continue-on-error: true
+        run: python -m camoufox fetch
 
       - name: Run registration
         shell: pwsh
