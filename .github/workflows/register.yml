@@ -54,7 +54,7 @@ on:
         required: false
         default: 'chromium'
       form_mode:
-        description: '注册方式：auto(默认,camoufox走真实表单) / true(强制真实表单) / false(合成请求)'
+        description: '注册方式：auto(默认,camoufox走真实表单) / true(强制真实表单) / false(合成请求) / protocol(协议实验:浏览器出令牌+requests提交,实测被Kasada判5025)'
         required: false
         default: 'auto'
       check_only:
