@@ -6,7 +6,7 @@
 #   3. Run workflow，填写服务器 IP 和 Job 数量（推荐 256）
 #
 # 流程: 拉取代码仓库最新代码 → 每个 job 独立环境执行注册任务
-#       每 job 默认 30 个账号（3 线程 × 10），自动容错
+#       每 job 默认 75 个账号（5 线程 × 15），自动容错
 
 name: Twitch Register
 
@@ -50,7 +50,7 @@ on:
         required: false
         default: ''
       quick_test:
-        description: '快速验证：1 线程 × 1 账号，跑完即结束（留空=默认 3×10）'
+        description: '快速验证：1 线程 × 1 账号，跑完即结束（留空=默认 5×15）'
         required: false
         default: 'false'
       fp_dump:
@@ -77,8 +77,8 @@ on:
 env:
   SERVER_IP: ${{ inputs.server_ip }}
   SERVER_IPS: ${{ inputs.server_ips }}
-  WORKER_COUNT: ${{ inputs.quick_test == 'true' && '1' || '3' }}
-  ACCOUNTS_PER_WORKER: ${{ inputs.quick_test == 'true' && '1' || '10' }}
+  WORKER_COUNT: ${{ inputs.quick_test == 'true' && '1' || '5' }}
+  ACCOUNTS_PER_WORKER: ${{ inputs.quick_test == 'true' && '1' || '15' }}
   # 每次启动浏览器按此概率随机选无头；想固定模式就设 NO_HEADLESS=true(有头)/false(无头)
   HEADLESS_RATIO: ${{ inputs.headless_ratio }}
   CHECK_ONLY: ${{ inputs.check_only }}
@@ -195,7 +195,7 @@ jobs:
             Write-Host "警告: manager.py 未写入 .warp_datadir，5025 时无法重置 WARP"
           }
 
-          # 2) 执行注册任务（每 job 30 个账号 = 3 线程 × 10）
+          # 2) 执行注册任务（每 job 75 个账号 = 5 线程 × 15）
           python run.py
           if ($LASTEXITCODE -ne 0) { throw "注册失败(退出码 $LASTEXITCODE)" }
 
