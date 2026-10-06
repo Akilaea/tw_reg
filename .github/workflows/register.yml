@@ -107,6 +107,7 @@ env:
   WARP_DIRECT_FALLBACK: "true"
   # 时区/语言跟随出口 IP（矛盾指纹是反爬最常见的交叉校验点）；想固定英语+系统时区就设 false
   GEO_MATCH: "true"
+  WARP_ENDPOINT_RANDOM: "true"
   # 注册成功后关注频道（新号大概率被手机验证关卡挡住，成功率看 job 结束的汇总行）
   FOLLOW_ENABLED: "true"
 
