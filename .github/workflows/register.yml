@@ -20,7 +20,7 @@ on:
       server_ips:
         description: '多后端上传：逗号分隔，注册出的每个账号会**同时上传到全部后端**（不同掉包活动各一个），如 "1.2.3.4,5.6.7.8"；留空=只用 server_ip'
         required: false
-        default: ''
+        default: '198.44.182.98,198.44.182.19'
       job_count:
         description: "Job 数量 (推荐 256)"
         required: false
