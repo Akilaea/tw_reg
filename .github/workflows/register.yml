@@ -13,12 +13,8 @@ name: Twitch Register
 on:
   workflow_dispatch:
     inputs:
-      server_ip:
-        description: "上传账户的服务器 IP"
-        required: false
-        default: "198.44.182.98"
       server_ips:
-        description: '多后端上传：逗号分隔，注册出的每个账号会**同时上传到全部后端**（不同掉包活动各一个），如 "1.2.3.4,5.6.7.8"；留空=只用 server_ip'
+        description: '上传后端(可多个)：逗号分隔，注册出的每个账号会同时上传到全部后端(不同掉包活动各一个)，如 "1.2.3.4,5.6.7.8"；只写一个就是单后端；留空=用默认双后端'
         required: false
         default: '198.44.182.98,198.44.182.19'
       job_count:
@@ -75,7 +71,6 @@ on:
         default: "0.5"
 
 env:
-  SERVER_IP: ${{ inputs.server_ip }}
   SERVER_IPS: ${{ inputs.server_ips }}
   WORKER_COUNT: ${{ inputs.quick_test == 'true' && '1' || '5' }}
   ACCOUNTS_PER_WORKER: ${{ inputs.quick_test == 'true' && '1' || '15' }}
