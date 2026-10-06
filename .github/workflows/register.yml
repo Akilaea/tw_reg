@@ -18,7 +18,7 @@ on:
         required: false
         default: "198.44.182.98"
       server_ips:
-        description: '多后端上传（不同掉包活动分流）：逗号分隔，可带权重 ip:权重，如 "1.2.3.4,5.6.7.8:3"；留空=只用 server_ip'
+        description: '多后端上传：逗号分隔，注册出的每个账号会**同时上传到全部后端**（不同掉包活动各一个），如 "1.2.3.4,5.6.7.8"；留空=只用 server_ip'
         required: false
         default: ''
       job_count:
