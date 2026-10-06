@@ -37,6 +37,10 @@ on:
         description: '外部代理出口(如 http://1.2.3.4:7897，无认证)。设了 GA 优先用它——可把本机 Clash 经隧道暴露给 GA 用'
         required: false
         default: ''
+      clash_mode:
+        description: '是否启用 Clash 订阅节点作为第一级出口（仅用于排除 IP 因素的对照测试；默认 false=VPNGate→WARP→本机）'
+        required: false
+        default: 'false'
       clash_pin_node:
         description: '指定优先使用的 Clash 节点名（本机/GA 同 IP 对照实验用；留空=随机）'
         required: false
@@ -79,6 +83,7 @@ env:
   # 5025/2014 递进恢复：连续 5 次 → 重置 WARP 换出口 IP（1 次）→ 再不行切本机直连 → 仍不行放弃
   # 出口恢复链（从第一级逐级降级）：Clash 订阅节点 → VPNGate 节点轮换 → WARP 重置 → 本机直连 → 终止
   # Clash 订阅地址放 secret（公开仓库不明文出现）；设了就以订阅节点为第一级出口
+  CLASH_ENABLED: ${{ inputs.clash_mode }}
   CLASH_SUB_URL: ${{ inputs.clash_sub_url != '' && inputs.clash_sub_url || secrets.CLASH_SUB_URL }}
   CLASH_FAIL_THRESHOLD: "3"
   CLASH_ROUNDS: "2"
