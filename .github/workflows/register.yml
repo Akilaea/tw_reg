@@ -17,6 +17,10 @@ on:
         description: "上传账户的服务器 IP"
         required: false
         default: "198.44.182.98"
+      server_ips:
+        description: '多后端上传（不同掉包活动分流）：逗号分隔，可带权重 ip:权重，如 "1.2.3.4,5.6.7.8:3"；留空=只用 server_ip'
+        required: false
+        default: ''
       job_count:
         description: "Job 数量 (推荐 256)"
         required: false
@@ -72,6 +76,7 @@ on:
 
 env:
   SERVER_IP: ${{ inputs.server_ip }}
+  SERVER_IPS: ${{ inputs.server_ips }}
   WORKER_COUNT: ${{ inputs.quick_test == 'true' && '1' || '3' }}
   ACCOUNTS_PER_WORKER: ${{ inputs.quick_test == 'true' && '1' || '10' }}
   # 每次启动浏览器按此概率随机选无头；想固定模式就设 NO_HEADLESS=true(有头)/false(无头)
