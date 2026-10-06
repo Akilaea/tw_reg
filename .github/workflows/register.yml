@@ -54,9 +54,9 @@ on:
         required: false
         default: 'chromium'
       form_mode:
-        description: '注册方式：auto(默认,camoufox走真实表单)/true(强制真实表单)/false(合成请求)/type_synth(填表后脚本提交,实验)/protocol(协议重放,实验)'
+        description: '注册方式：false(默认,半协议合成请求)/auto(内核自适应)/true(强制真实表单)/type_synth(填表后脚本提交,实验)/protocol(协议重放,实验)'
         required: false
-        default: 'auto'
+        default: 'false'
       check_only:
         description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
         required: false
