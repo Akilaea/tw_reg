@@ -64,7 +64,7 @@ on:
       global_5025_limit:
         description: '全局累计 5025 熔断：整个 job 累计出现这么多次 5025 就直接结束该 job（0=关闭），让编排换新容器重开'
         required: false
-        default: '40'
+        default: '10'
       check_only:
         description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
         required: false
