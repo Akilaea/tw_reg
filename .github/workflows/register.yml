@@ -95,6 +95,8 @@ env:
   DISABLE_QUIC: "true"
   FP_DUMP: ${{ inputs.fp_dump }}
   BROWSER_ENGINE: ${{ inputs.browser_engine }}
+  # 可选：CloakBrowser 新版本要 license key（ruyijs 引擎不需要）
+  CLOAKBROWSER_LICENSE_KEY: ${{ secrets.CLOAKBROWSER_LICENSE_KEY }}
   FORM_MODE: ${{ inputs.form_mode }}
   VPNGATE_ENABLED: "true"
   VPNGATE_NODES: "100"
