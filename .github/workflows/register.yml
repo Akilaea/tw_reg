@@ -54,9 +54,9 @@ on:
         required: false
         default: 'false'
       browser_engine:
-        description: '注册引擎：ruyi(默认, ruyijs 真实 Firefox JS 引擎+Necko, 无需浏览器/license) / chromium(CloakBrowser, 需 license) / camoufox(Firefox)'
+        description: '注册引擎：chromium(默认, CloakBrowser) / ruyi(ruyijs Firefox JS 引擎, 无需 license) / camoufox(Firefox)'
         required: false
-        default: 'ruyi'
+        default: 'chromium'
       form_mode:
         description: '注册方式：false(默认,半协议合成请求)/auto(内核自适应)/true(强制真实表单)/type_synth(填表后脚本提交,实验)/protocol(协议重放,实验)'
         required: false
