@@ -1,213 +1,151 @@
-# public.yml - 公开仓库模板 workflow
+# public.yml — 分发模板（复制到你的仓库 .github/workflows/a.yml）
 #
-# 用法（详见代码仓库 README）:
-#   1. 复制本文件全部内容到公开仓库的 .github/workflows/a.yml
-#   2. Settings → Secrets and variables → Actions 配置 PRIVATE_REPO_ACCESS_KEY
-#   3. Run workflow，填写服务器 IP 和 Job 数量（推荐 256）
+# 用法：
+#   1. 新建一个仓库（公开仓库 Actions 免费；私有仓库也行）
+#   2. 把本文件内容保存为 .github/workflows/a.yml
+#   3. Settings → Secrets and variables → Actions：
+#      - Secret  PRIVATE_REPO_ACCESS_KEY = 能读取 xbox-cn/TW_REG_RELEASE_V1 的 PAT
+#      API_BASE_URL / API_TOKEN 已写死在源码默认值，无需配置
+#   4. Actions → Twitch Register (distributed) → Run workflow
 #
-# 流程: 拉取代码仓库最新代码 → 每个 job 独立环境执行注册任务
-#       每 job 默认 75 个账号（5 线程 × 15），自动容错
+# 每个 job 独立一条 WARP 出口，默认 3 线程 × 15 账号 = 45/ job；
+# 总账号 = job_count × workers × accounts。
 
-name: Twitch Register
+name: Twitch Register (distributed)
 
 on:
   workflow_dispatch:
     inputs:
-      server_ips:
-        description: '上传后端(可多个)：逗号分隔，注册出的每个账号会同时上传到全部后端(不同掉包活动各一个)，如 "1.2.3.4,5.6.7.8"；只写一个就是单后端；留空=用默认双后端'
-        required: false
-        default: '198.44.182.98,198.44.182.19'
       job_count:
-        description: "Job 数量 (推荐 256)"
+        description: "并行 job 数（每个 job 一条独立 WARP 出口，1-50）"
         required: false
-        default: "256"
-      log_level:
-        description: "日志级别 (DEBUG/INFO/WARNING)"
+        default: "1"
+      workers:
+        description: "每个 job 的线程数"
         required: false
-        default: "INFO"
-      clash_sub_url:
-        description: 'Clash 订阅地址（留空则用仓库 secret CLASH_SUB_URL）；设了就以订阅节点为第一级出口'
+        default: "3"
+      accounts:
+        description: "每个线程注册账号数"
         required: false
-        default: ''
-      clash_diag_limit:
-        description: '诊断用：Clash 最多试几个节点就结束（0=不限）'
+        default: "15"
+      domain:
+        description: "收信域名（*.xxx 表示每次随机子域）"
         required: false
-        default: '0'
-      upstream_proxy:
-        description: '外部代理出口(如 http://1.2.3.4:7897，无认证)。设了 GA 优先用它——可把本机 Clash 经隧道暴露给 GA 用'
+        default: "*.jsip.us"
+      warp_core:
+        description: "WARP 协议: awg / masque-h2 / wg / masque（失败自动降级）"
         required: false
-        default: ''
-      clash_mode:
-        description: '是否启用 Clash 订阅节点作为第一级出口（仅用于排除 IP 因素的对照测试；默认 false=VPNGate→WARP→本机）'
+        default: "awg"
+      rest_every:
+        description: "每注册 N 个账号休息一次（0=不休息）"
         required: false
-        default: 'false'
-      clash_pin_node:
-        description: '指定优先使用的 Clash 节点名（本机/GA 同 IP 对照实验用；留空=随机）'
+        default: "0"
+      rest_sec:
+        description: "每次休息秒数"
         required: false
-        default: ''
-      quick_test:
-        description: '快速验证：1 线程 × 1 账号，跑完即结束（留空=默认 5×15）'
+        default: "600"
+      upload:
+        description: "上传账号: 1=上传（内置 API 配置） 0=只存 artifact"
         required: false
-        default: 'false'
-      fp_dump:
-        description: '指纹差分采集(JSON 一条日志)：true/false'
+        default: "1"
+      probe_only:
+        description: "只建立出口 + 真实 Step1 探活，不注册"
         required: false
-        default: 'false'
-      browser_engine:
-        description: '注册引擎：chromium(默认, CloakBrowser) / ruyi(ruyijs Firefox JS 引擎, 无需 license) / camoufox(Firefox)'
-        required: false
-        default: 'chromium'
-      form_mode:
-        description: '注册方式：false(默认,半协议合成请求)/auto(内核自适应)/true(强制真实表单)/type_synth(填表后脚本提交,实验)/protocol(协议重放,实验)'
-        required: false
-        default: 'false'
-      global_5025_limit:
-        description: '全局累计 5025 熔断：整个 job 累计出现这么多次 5025 就直接结束该 job（0=关闭），让编排换新容器重开'
-        required: false
-        default: '10'
-      check_only:
-        description: "只检查出口连通性(连上 VPNGate 并校验出口 IP)，不注册：true/false"
-        required: false
-        default: "false"
-      headless_ratio:
-        description: "无头比例 0.0-1.0 (0=全有头, 1=全无头, 0.5=随机各半)"
-        required: false
-        default: "0.5"
+        default: "0"
 
-env:
-  SERVER_IPS: ${{ inputs.server_ips }}
-  WORKER_COUNT: ${{ inputs.quick_test == 'true' && '1' || '5' }}
-  ACCOUNTS_PER_WORKER: ${{ inputs.quick_test == 'true' && '1' || '15' }}
-  # 每次启动浏览器按此概率随机选无头；想固定模式就设 NO_HEADLESS=true(有头)/false(无头)
-  HEADLESS_RATIO: ${{ inputs.headless_ratio }}
-  CHECK_ONLY: ${{ inputs.check_only }}
-  PYTHONIOENCODING: utf-8
-  LOGURU_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
-  # --- 下面这些按需覆盖即可，默认值见 config_helpers.py ---
-  # 5025/2014 递进恢复：连续 5 次 → 重置 WARP 换出口 IP（1 次）→ 再不行切本机直连 → 仍不行放弃
-  # 出口恢复链（从第一级逐级降级）：VPNGate 节点轮换 → WARP 重置 → 本机直连 → 终止
-  # Clash 订阅节点只在对照测试时启用（clash_mode=true 或指定 clash_pin_node），订阅地址放 secret
-  CLASH_ENABLED: ${{ inputs.clash_mode }}
-  CLASH_SUB_URL: ${{ inputs.clash_sub_url != '' && inputs.clash_sub_url || secrets.CLASH_SUB_URL }}
-  CLASH_FAIL_THRESHOLD: "3"
-  CLASH_ROUNDS: "2"
-  CLASH_DIAG_LIMIT: ${{ inputs.clash_diag_limit }}
-  UPSTREAM_PROXY: ${{ inputs.upstream_proxy }}
-  CLASH_PIN_NODE: ${{ inputs.clash_pin_node }}
-  # 全流程只走 IPv4：整机禁用 IPv6 + 关 QUIC(HTTP/3 走 UDP 会绕过 HTTP 代理，从 WARP/本机 IPv6 出去)
-  FORCE_IPV4: "true"
-  DISABLE_QUIC: "true"
-  FP_DUMP: ${{ inputs.fp_dump }}
-  BROWSER_ENGINE: ${{ inputs.browser_engine }}
-  # 可选：CloakBrowser 新版本要 license key（ruyijs 引擎不需要）
-  CLOAKBROWSER_LICENSE_KEY: ${{ secrets.CLOAKBROWSER_LICENSE_KEY }}
-  FORM_MODE: ${{ inputs.form_mode }}
-  VPNGATE_ENABLED: "true"
-  VPNGATE_NODES: "100"
-  VPNGATE_FAIL_THRESHOLD: "3"
-  GLOBAL_5025_LIMIT: ${{ inputs.global_5025_limit }}
-  # openvpn 绝对路径：choco 安装不会影响后续步骤的 PATH，所以显式指定
-  VPNGATE_OPENVPN: 'C:\Program Files\OpenVPN\bin\openvpn.exe'
-  WARP_RESET_ENABLED: "true"
-  WARP_RESET_THRESHOLD: "5"
-  WARP_RESET_MAX: "1"
-  WARP_DIRECT_FALLBACK: "true"
-  # 时区/语言跟随出口 IP（矛盾指纹是反爬最常见的交叉校验点）；想固定英语+系统时区就设 false
-  GEO_MATCH: "true"
-  WARP_ENDPOINT_RANDOM: "true"
-  # 注册成功后关注频道（新号大概率被手机验证关卡挡住，成功率看 job 结束的汇总行）
-  FOLLOW_ENABLED: "true"
+concurrency:
+  group: twreg-distributed-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  # 根据 job_count 生成 matrix（限制 1-256）
   prepare:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.gen.outputs.matrix }}
     steps:
-      - name: Generate job matrix
+      - name: 生成 job matrix
         id: gen
+        env:
+          N: ${{ inputs.job_count }}
         run: |
-          n=${{ github.event.inputs.job_count }}
-          if [ "$n" -gt 256 ]; then n=256; fi
-          if [ "$n" -lt 1 ]; then n=1; fi
-          python3 -c "import json; print('matrix=' + json.dumps(list(range($n))))" >> "$GITHUB_OUTPUT"
-          echo "将启动 $n 个并行 job"
+          M=$(python3 -c "import json,os;n=max(1,min(50,int(os.environ.get('N') or 1)));print(json.dumps(list(range(n))))")
+          echo "matrix=$M" >> "$GITHUB_OUTPUT"
+          echo "matrix=$M"
 
   register:
     needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 350
     strategy:
       fail-fast: false
       matrix:
-        index: ${{ fromJSON(needs.prepare.outputs.matrix) }}
-    runs-on: windows-latest
-    timeout-minutes: 360
-
+        index: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: code
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
     steps:
-      # 拉取代码仓库的最新代码
-      - name: Fetch source code
+      - name: 拉取源仓库（private）
         uses: actions/checkout@v4
         with:
-          repository: xbox-cn/twitch-reg-test
+          repository: xbox-cn/TW_REG_RELEASE_V1
           token: ${{ secrets.PRIVATE_REPO_ACCESS_KEY }}
           path: code
 
-      - name: Setup Python
+      - name: 安装 Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
+          cache-dependency-path: code/requirements.txt
 
-      - name: Install dependencies
-        run: pip install -r code/requirements.txt
-
-      # 环境准备 + 注册合并同一步骤
-      - name: Install OpenVPN (VPNGate 出口需要)
-        shell: pwsh
+      - name: 安装依赖
         run: |
-          $exe = 'C:\Program Files\OpenVPN\bin\openvpn.exe'
-          if (Test-Path $exe) { Write-Host "openvpn 已存在: $exe"; exit 0 }
-          choco install openvpn --no-progress -y
-          if (Test-Path $exe) { Write-Host "openvpn 安装成功: $exe" }
-          else { Write-Warning "未找到 $exe；run.py 会自动跳过 VPNGate 级，直接走 WARP" }
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
 
-      # 预热 Clash 内核：提前下载 mihomo 并执行一次（触发杀软扫描/页缓存），
-      # 避免 run.py 首次启动 58MB 新 exe 时卡在初始化（实测偶发 60s 不就绪）
-      - name: Warm up Clash core
-        if: ${{ env.CLASH_SUB_URL != '' }}
-        continue-on-error: true
-        run: python clash_proxy.py --warmup
-        working-directory: code
+      - name: 缓存 xehn 包
+        uses: actions/cache@v4
+        with:
+          path: code/xehn-cache
+          key: xehn-cache-v1
 
-      # Camoufox(Firefox)：下载反检测内核（仅在选用 camoufox 时执行）
-      - name: Fetch Camoufox browser
-        if: ${{ inputs.browser_engine == 'camoufox' }}
-        continue-on-error: true
-        run: python -m camoufox fetch
-
-      - name: Run registration
+      - name: 建立出口（XEHN WARP）并批量注册
         shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WORKERS: ${{ inputs.workers }}
+          ACCOUNTS: ${{ inputs.accounts }}
+          MAIL_API_URL: ${{ vars.MAIL_API_URL || 'https://mail.minecraft.fashion' }}
+          MAIL_DOMAINS: ${{ inputs.domain }}
+          ENABLE_UPLOAD: ${{ inputs.upload }}
+          WORKER_NAME: reg_dist_${{ github.run_id }}_${{ matrix.index }}
+          MAX_FAILS: "30"
+          EGRESS_ROTATE_AFTER: "3"
+          RUYIJS_FIREFOX: "159"
+          REST_EVERY: ${{ inputs.rest_every }}
+          REST_SEC: ${{ inputs.rest_sec }}
+          PROBE_ONLY: ${{ inputs.probe_only }}
         run: |
-          cd code
-          # 1) 准备独立运行环境（每 job 独立配置，同时拉起 WARP 并设置系统代理）
-          python tools/runner/manager.py --data-dir "env-data-${{ matrix.index }}"
-          if ($LASTEXITCODE -ne 0) { throw "环境准备失败" }
-          # run.py 靠这个标记做 5025 后的 WARP 重置；缺失则只能退回熔断终止
-          if (-not (Test-Path "tools/runner/.warp_datadir")) {
-            Write-Host "警告: manager.py 未写入 .warp_datadir，5025 时无法重置 WARP"
+          # 出口与注册必须在同一步骤：GitHub 会在步骤结束时杀掉后台隧道进程
+          ./scripts/setup_egress.ps1 -Core "${{ inputs.warp_core }}" -Port 7890
+          if (-not $env:PROXY_SERVER) { Write-Host "::error::WARP egress not ready"; exit 1 }
+          if ("${{ inputs.probe_only }}" -eq "1") {
+            python scripts/probe_egress.py "$env:PROXY_SERVER"
+            exit $LASTEXITCODE
           }
+          python batch_run.py --workers "$env:WORKERS" --accounts "$env:ACCOUNTS" `
+            --rest-every "$env:REST_EVERY" --rest-sec "$env:REST_SEC"
 
-          # 2) 执行注册任务（每 job 75 个账号 = 5 线程 × 15）
-          python run.py
-          if ($LASTEXITCODE -ne 0) { throw "注册失败(退出码 $LASTEXITCODE)" }
-
-      - name: Upload logs
+      - name: 上传账号与日志
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: logs-${{ matrix.index }}-${{ github.run_id }}
+          name: accounts-job${{ matrix.index }}-${{ github.run_id }}
           path: |
+            code/accounts/
             code/logs/
-            code/tools/runner/run.log
-            code/vpngate-data/
-          if-no-files-found: ignore
+          retention-days: 14
+          if-no-files-found: warn
